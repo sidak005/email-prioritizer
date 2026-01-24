@@ -108,71 +108,83 @@ class PriorityService:
         
         found_keywords = []
         total_score = 0
+        time_modifier = 1.0
+        time_based_urgency = 0.0  # Urgency from "in X days" etc. when no keywords
         
-        # Check for time-based urgency modifiers (reduce score if deadline is far)
-        time_modifier = 1.0  # Default: no reduction
+        # Near-term deadlines: "in 1 day", "in 2 days", "1 day", etc.
+        near_deadline = re.search(
+            r'(?:in\s+(\d+)\s+day|(\d+)\s+day\s+(?:left|remaining|to\s+go|until)|due\s+in\s+(\d+)\s+day)',
+            text, re.I
+        )
+        in_days = re.findall(r'in\s+(\d+)\s+days?', text)
+        days_only = re.findall(r'(\d+)\s+days?\s+(?:from\s+now|away|left|remaining)', text)
+        all_days = []
+        for m in in_days:
+            all_days.append(int(m))
+        for m in days_only:
+            all_days.append(int(m))
+        if near_deadline:
+            g = near_deadline.groups()
+            for x in g:
+                if x and x.isdigit():
+                    all_days.append(int(x))
+                    break
         
-        # Patterns that indicate far future deadlines (reduce urgency)
-        far_future_patterns = [
-            r'after\s+(\d+)\s+days?',
-            r'in\s+(\d+)\s+days?',
-            r'(\d+)\s+days?\s+from\s+now',
-            r'(\d+)\s+days?\s+away',
-            r'deadline.*?(\d+)\s+days?',
-        ]
+        if all_days:
+            d = min(all_days)
+            if d <= 1:
+                time_based_urgency = 0.95   # "in 1 day" → very high
+            elif d <= 2:
+                time_based_urgency = 0.85
+            elif d <= 3:
+                time_based_urgency = 0.75
+            elif d <= 7:
+                time_based_urgency = 0.6
+            elif d <= 14:
+                time_modifier = 0.8
+            elif d <= 30:
+                time_modifier = 0.6
+            elif d <= 50:
+                time_modifier = 0.4
+            else:
+                time_modifier = 0.2
         
-        # Patterns that indicate near future (increase urgency)
-        near_future_patterns = [
-            r'today',
-            r'tomorrow',
-            r'this\s+week',
-            r'in\s+(\d+)\s+hours?',
-            r'(\d+)\s+hours?\s+from\s+now',
-        ]
+        # "today" / "tomorrow" / "in X hours" → boost
+        if re.search(r'\b(?:today|tomorrow|this\s+week)\b', text):
+            time_based_urgency = max(time_based_urgency, 0.9)
+        hours = re.findall(r'in\s+(\d+)\s+hours?', text)
+        if hours and int(hours[0]) <= 24:
+            time_based_urgency = max(time_based_urgency, 0.9)
         
-        # Check for far future deadlines
-        for pattern in far_future_patterns:
-            matches = re.findall(pattern, text)
-            for match in matches:
-                if isinstance(match, tuple):
-                    match = match[0] if match else ""
-                try:
-                    days = int(match) if match.isdigit() else 0
-                    if days > 7:  # More than a week away
-                        # Reduce urgency: 50+ days = very low, 7-50 days = moderate reduction
-                        if days >= 50:
-                            time_modifier = 0.2  # Very low urgency
-                        elif days >= 30:
-                            time_modifier = 0.4
-                        elif days >= 14:
-                            time_modifier = 0.6
-                        else:  # 7-14 days
-                            time_modifier = 0.8
-                        break
-                except (ValueError, AttributeError):
-                    pass
+        # Far future: "after X days" (distant) → reduce
+        after = re.findall(r'after\s+(\d+)\s+days?', text)
+        for m in after:
+            try:
+                d = int(m)
+                if d >= 50:
+                    time_modifier = min(time_modifier, 0.2)
+                elif d >= 30:
+                    time_modifier = min(time_modifier, 0.4)
+                elif d >= 14:
+                    time_modifier = min(time_modifier, 0.6)
+            except ValueError:
+                pass
         
-        # Check for near future (increase urgency)
-        for pattern in near_future_patterns:
-            if re.search(pattern, text):
-                time_modifier = 1.2  # Boost urgency
-                break
-        
-        # Calculate keyword-based urgency
+        # Keyword-based urgency
         for keyword, score in self.urgency_keywords.items():
             if keyword in text:
                 found_keywords.append(keyword)
                 total_score += score
         
-        # Normalize to 0-1
-        if total_score == 0:
-            return 0.0
+        if total_score > 0:
+            base = min(1.0, total_score / (max_score * 2))
+            base = base * time_modifier
+        else:
+            base = 0.0
         
-        base_score = min(1.0, total_score / (max_score * 2))
-        
-        # Apply time modifier (but don't go below 0 or above 1)
-        final_score = base_score * time_modifier
-        return min(1.0, max(0.0, final_score))
+        # Use time-based urgency when we have "in 1 day" etc. but no keywords
+        final = max(base, time_based_urgency * time_modifier)
+        return min(1.0, max(0.0, final))
     
     def _extract_urgency_keywords(self, subject: str, body: str) -> List[str]:
         """Extract found urgency keywords"""

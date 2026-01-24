@@ -160,3 +160,38 @@ When discussing this project:
 ---
 
 **Ready to showcase! 🚀**
+
+
+
+```
+email-prioritizer/
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+├── README.md
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py              # FastAPI app
+│   │   ├── config.py            # Configuration
+│   │   ├── models/
+│   │   │   ├── email.py         # Email models
+│   │   │   └── user.py          # User models
+│   │   ├── services/
+│   │   │   ├── email_service.py      # Email fetching
+│   │   │   ├── embedding_service.py   # Vector embeddings
+│   │   │   ├── pinecone_service.py    # Pinecone operations
+│   │   │   ├── llm_service.py         # Hugging Face LLM
+│   │   │   ├── priority_service.py    # Priority calculation
+│   │   │   └── response_service.py    # Response generation
+│   │   ├── api/
+│   │   │   ├── routes/
+│   │   │   │   ├── emails.py    # Email endpoints
+│   │   │   │   ├── priority.py  # Priority endpoints
+│   │   │   │   └── responses.py # Response endpoints
+│   │   ├── database/
+│   │   │   └── supabase_client.py
+│   │   └── utils/
+│   │       └── metrics.py       # Performance tracking
+├── frontend/                     # (Optional - can add later)
+└── tests/

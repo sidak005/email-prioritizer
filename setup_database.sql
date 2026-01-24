@@ -62,3 +62,22 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 
 CREATE TRIGGER update_emails_updated_at BEFORE UPDATE ON emails
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- OPTIONAL: Row Level Security (RLS)
+-- Uncomment below if you want RLS enabled
+-- ============================================
+
+-- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE emails ENABLE ROW LEVEL SECURITY;
+
+-- CREATE POLICY "Users can view own data" ON users
+--     FOR SELECT USING (auth.uid() = id);
+
+-- CREATE POLICY "Users can view own emails" ON emails
+--     FOR SELECT USING (auth.uid() = user_id);
+
+-- ============================================
+-- DONE! Your database is ready.
+-- Expected output: "Success. No rows returned"
+-- ============================================

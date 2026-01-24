@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-import numpy as np
+
 from backend.app.config import settings
 
 # Handle different Pinecone versions
