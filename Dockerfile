@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements and install ONLY slim dependencies (exclude heavy/unused packages)
 # This keeps image < 4 GB for Railway. App uses HF Inference API when packages are missing.
+# Note: pinecone is NOT excluded - it's needed for the app to work
 COPY requirements.txt .
 RUN python3 -c "\
 import re; \
-exclude = {'torch', 'transformers', 'sentence-transformers', 'accelerate', 'lxml', 'psycopg2-binary', 'sqlalchemy', 'redis', 'google-api-python-client', 'google-auth-httplib2', 'google-auth-oauthlib', 'pytest', 'pytest-asyncio'};
-# Note: pinecone is NOT excluded - it's needed for the app to work \
+exclude = {'torch', 'transformers', 'sentence-transformers', 'accelerate', 'lxml', 'psycopg2-binary', 'sqlalchemy', 'redis', 'google-api-python-client', 'google-auth-httplib2', 'google-auth-oauthlib', 'pytest', 'pytest-asyncio'}; \
 lines = [l for l in open('requirements.txt') if not l.strip() or l.strip().startswith('#') or re.split(r'[>=<!=]', l.strip())[0].strip() not in exclude]; \
 open('/tmp/req-slim.txt', 'w').writelines(lines)" && \
     pip install --no-cache-dir -r /tmp/req-slim.txt && \
