@@ -8,13 +8,16 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install requirements
+# Copy requirements and install ONLY slim dependencies (exclude heavy/unused packages)
+# This keeps image < 4 GB for Railway. App uses HF Inference API when packages are missing.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Uninstall heavy ML packages to keep image < 4 GB for Railway
-# The app uses Hugging Face Inference API when these packages are missing
-RUN pip uninstall -y torch transformers sentence-transformers accelerate || true
+RUN python3 -c "\
+import re; \
+exclude = {'torch', 'transformers', 'sentence-transformers', 'accelerate', 'lxml', 'psycopg2-binary', 'sqlalchemy', 'redis', 'google-api-python-client', 'google-auth-httplib2', 'google-auth-oauthlib', 'pytest', 'pytest-asyncio'}; \
+lines = [l for l in open('requirements.txt') if not l.strip() or l.strip().startswith('#') or re.split(r'[>=<!=]', l.strip())[0].strip() not in exclude]; \
+open('/tmp/req-slim.txt', 'w').writelines(lines)" && \
+    pip install --no-cache-dir -r /tmp/req-slim.txt && \
+    rm /tmp/req-slim.txt
 
 # Copy application code
 COPY backend/ ./backend/
