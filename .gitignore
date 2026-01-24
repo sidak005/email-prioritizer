@@ -13,6 +13,9 @@ ENV/
 .env
 .env.local
 
+# Setup files with secrets
+RAILWAY_SETUP.md
+
 # IDE
 .vscode/
 .idea/
