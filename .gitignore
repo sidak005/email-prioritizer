@@ -31,7 +31,8 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Models (if downloaded locally)
-models/
+# ML Model files (downloaded model weights, not Python code)
 *.bin
 *.safetensors
+**/checkpoints/
+**/model_cache/
