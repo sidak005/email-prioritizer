@@ -14,7 +14,7 @@ An AI-powered email management system that automatically prioritizes emails and 
 - **Scale**: 1M+ emails processed, 10,000+ users
 - **Response Quality**: 88%+ user satisfaction with generated responses
 
-## 📈 Features
+## Features
 
 - **Email Prioritization**: Automatically scores emails by importance
 - **Sentiment Analysis**: Detects email tone and sentiment; - Uses RoBERTa-based sentiment model
