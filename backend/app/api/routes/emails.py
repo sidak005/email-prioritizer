@@ -240,7 +240,8 @@ async def fetch_inbox(req: FetchInboxRequest):
                 "subject": subject,
                 "sender": sender,
             })
-        except Exception:
+        except Exception as e:
+            print(f"Error processing email: {e}")
             continue
 
     return {"results": results, "total": len(results)}

@@ -181,6 +181,21 @@ class PriorityService:
         text = f"{subject} {body}".lower()
         return [kw for kw in self.urgency_keywords.keys() if kw in text]
     
+    async def _calculate_sender_importance(self, sender: str, user_id: str) -> float:
+        """Calculate sender importance score (0.0 to 1.0)"""
+        sender_lower = sender.lower()
+        
+        important_domains = ["@company.com", "@work.com", "@official", "noreply", "no-reply"]
+        if any(domain in sender_lower for domain in important_domains):
+            if "noreply" in sender_lower or "no-reply" in sender_lower:
+                return 0.3
+            return 0.8
+        
+        personal_domains = ["@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"]
+        if any(domain in sender_lower for domain in personal_domains):
+            return 0.5
+        
+        return 0.5
     
     def _calculate_time_sensitivity(self, received_at: datetime) -> float:
         hour = received_at.hour
