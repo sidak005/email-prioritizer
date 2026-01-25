@@ -63,16 +63,13 @@ class PriorityService:
         # 3. Check urgency keywords
         urgency_score = self._calculate_urgency_score(subject, body)
         
-        # 4. Calculate sender importance (simplified - can be enhanced with history)
+        # 4. Calculate importance
         sender_importance = await self._calculate_sender_importance(sender, user_id)
         
-        # 5. Time sensitivity (emails received during work hours get slight boost)
+        # 5. Time sensitivity
         time_sensitivity = self._calculate_time_sensitivity(received_at)
-        
-        # 6. Similar emails priority (check if similar emails were high priority)
         similar_emails_score = await self._get_similar_emails_priority(subject, body)
         
-        # Calculate weighted priority score (0-100)
         priority_score = (
             sender_importance * self.weights["sender_importance"] * 100 +
             urgency_score * self.weights["urgency_keywords"] * 100 +
@@ -82,13 +79,9 @@ class PriorityService:
             similar_emails_score * self.weights["similar_emails"] * 100
         )
         
-        # Normalize to 0-100
         priority_score = min(100, max(0, priority_score))
-        
-        # Determine priority level
         priority_level = self._score_to_level(priority_score, intent)
-        
-        processing_time = (time.time() - start_time) * 1000  # Convert to ms
+        processing_time = (time.time() - start_time) * 1000
         
         return {
             "priority_score": round(priority_score, 2),
@@ -109,9 +102,8 @@ class PriorityService:
         found_keywords = []
         total_score = 0
         time_modifier = 1.0
-        time_based_urgency = 0.0  # Urgency from "in X days" etc. when no keywords
+        time_based_urgency = 0.0
         
-        # Near-term deadlines: "in 1 day", "in 2 days", "1 day", etc.
         near_deadline = re.search(
             r'(?:in\s+(\d+)\s+day|(\d+)\s+day\s+(?:left|remaining|to\s+go|until)|due\s+in\s+(\d+)\s+day)',
             text, re.I
@@ -133,7 +125,7 @@ class PriorityService:
         if all_days:
             d = min(all_days)
             if d <= 1:
-                time_based_urgency = 0.95   # "in 1 day" → very high
+                time_based_urgency = 0.95
             elif d <= 2:
                 time_based_urgency = 0.85
             elif d <= 3:
@@ -149,14 +141,14 @@ class PriorityService:
             else:
                 time_modifier = 0.2
         
-        # "today" / "tomorrow" / "in X hours" → boost
+        # "today" / "tomorrow" / "in X hours"
         if re.search(r'\b(?:today|tomorrow|this\s+week)\b', text):
             time_based_urgency = max(time_based_urgency, 0.9)
         hours = re.findall(r'in\s+(\d+)\s+hours?', text)
         if hours and int(hours[0]) <= 24:
             time_based_urgency = max(time_based_urgency, 0.9)
         
-        # Far future: "after X days" (distant) → reduce
+        # Far future
         after = re.findall(r'after\s+(\d+)\s+days?', text)
         for m in after:
             try:
@@ -170,7 +162,6 @@ class PriorityService:
             except ValueError:
                 pass
         
-        # Keyword-based urgency
         for keyword, score in self.urgency_keywords.items():
             if keyword in text:
                 found_keywords.append(keyword)
@@ -182,31 +173,18 @@ class PriorityService:
         else:
             base = 0.0
         
-        # Use time-based urgency when we have "in 1 day" etc. but no keywords
+        # time-based urgency
         final = max(base, time_based_urgency * time_modifier)
         return min(1.0, max(0.0, final))
     
     def _extract_urgency_keywords(self, subject: str, body: str) -> List[str]:
-        """Extract found urgency keywords"""
         text = f"{subject} {body}".lower()
         return [kw for kw in self.urgency_keywords.keys() if kw in text]
     
-    async def _calculate_sender_importance(self, sender: str, user_id: str) -> float:
-        """Calculate sender importance (0-1)"""
-        # TODO: Enhance with historical data from database
-        # For now, use simple heuristics:
-        # - Known contacts: higher importance
-        # - Domain-based: work emails > personal > unknown
-        
-        # Check if sender is in user's contacts (would query database)
-        # For now, return default
-        return 0.5  # Default importance
     
     def _calculate_time_sensitivity(self, received_at: datetime) -> float:
-        """Calculate time sensitivity based on when email was received"""
         hour = received_at.hour
         
-        # Work hours (9 AM - 5 PM) get higher score
         if 9 <= hour <= 17:
             return 0.8
         elif 8 <= hour <= 20:
@@ -215,25 +193,19 @@ class PriorityService:
             return 0.4
     
     async def _get_similar_emails_priority(self, subject: str, body: str) -> float:
-        """Get priority score based on similar emails"""
         try:
-            # Generate embedding
             embedding = self.embedding_service.generate_embedding(f"{subject} {body}")
-            
-            # Search for similar emails
             similar = await self.pinecone_service.search_similar_emails(embedding, top_k=3)
             
             if not similar:
-                return 0.5  # Default
-            
-            # Average priority of similar emails
+                return 0.5  
             total_score = 0
             count = 0
             
             for match in similar:
                 metadata = match.get("metadata", {})
                 if "priority_score" in metadata:
-                    total_score += metadata["priority_score"] / 100  # Normalize
+                    total_score += metadata["priority_score"] / 100
                     count += 1
             
             if count == 0:
@@ -245,8 +217,6 @@ class PriorityService:
             return 0.5
     
     def _score_to_level(self, score: float, intent: str) -> PriorityLevel:
-        """Convert priority score to level"""
-        # Override for spam
         if intent == "spam":
             return PriorityLevel.SPAM
         

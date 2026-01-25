@@ -9,7 +9,6 @@ from backend.app.models.email import Email, EmailCreate, PriorityLevel, EmailInt
 class EmailService:
     """Service for email parsing and processing"""
     
-    @staticmethod
     def parse_email(raw_email: str) -> dict:
         """Parse raw email string into structured data"""
         msg = email.message_from_string(raw_email)
@@ -23,7 +22,7 @@ class EmailService:
         # Parse date
         try:
             received_at = parsedate_to_datetime(date_str)
-        except:
+        except (ValueError, TypeError):
             received_at = datetime.now()
         
         # Extract body
@@ -69,7 +68,6 @@ class EmailService:
             "received_at": received_at
         }
     
-    @staticmethod
     def _clean_email_body(body: str) -> str:
         """Clean email body (remove signatures, etc.)"""
         if not body:
@@ -93,7 +91,6 @@ class EmailService:
         
         return "\n".join(cleaned_lines).strip()
     
-    @staticmethod
     def _extract_email_address(address_string: str) -> str:
         """Extract email address from 'Name <email@domain.com>' format"""
         import re

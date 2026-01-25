@@ -7,34 +7,24 @@ from backend.app.config import settings
 from backend.app.api.routes import emails, priority, responses
 from backend.app.utils.metrics import MetricsCollector
 
-# Initialize metrics collector
 metrics = MetricsCollector()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("🚀 Starting Email Prioritizer API...")
-    try:
-        print(f"Environment: {settings.environment}")
-    except Exception as e:
-        print(f"⚠️ Config error: {e}")
+    print(f"Environment: {settings.environment}")
     
-    # Initialize services lazily (store in app state for access in routes)
-    # Don't initialize all services at startup to avoid blocking
-    print("📦 Services will be initialized on first use...")
-    
+    # Services initialized lazily on first use
     app.state.supabase = None
     app.state.embedding = None
     app.state.pinecone = None
     app.state.llm = None
     
-    print("✅ FastAPI app ready - services initialized lazily")
+    print("FastAPI app ready")
     
     yield
     
-    # Shutdown
-    print("🛑 Shutting down...")
+    print("Shutting down...")
 
 
 app = FastAPI(
@@ -47,7 +37,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +47,6 @@ app.add_middleware(
 app.include_router(emails.router, prefix="/api/v1/emails", tags=["emails"])
 app.include_router(priority.router, prefix="/api/v1/priority", tags=["priority"])
 app.include_router(responses.router, prefix="/api/v1/responses", tags=["responses"])
-
 
 @app.get("/")
 async def root():

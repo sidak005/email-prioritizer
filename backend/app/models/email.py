@@ -77,4 +77,4 @@ class EmailPriorityUpdate(BaseModel):
     """Model for updating email priority"""
     priority_score: Optional[float] = None
     priority_level: Optional[PriorityLevel] = None
-    user_feedback: Optional[str] = None  # "correct" or "incorrect"
+    user_feedback: Optional[str] = None 

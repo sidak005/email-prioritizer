@@ -15,21 +15,18 @@ class LLMService:
 
     async def initialize(self):
         if self.use_api:
-            print("Using Hugging Face Inference API for sentiment")
             return
+        
         try:
             from transformers import pipeline
             import torch
             device = 0 if torch.cuda.is_available() else -1
-            print("Loading LLM models...")
             self.sentiment_analyzer = pipeline(
                 "sentiment-analysis",
                 model=HF_SENTIMENT_MODEL,
                 device=device,
             )
-            print("✅ Sentiment analyzer loaded")
-        except Exception as e:
-            print(f"⚠️ Local sentiment failed, falling back to API: {e}")
+        except ImportError:
             self.use_api = True
 
     def analyze_sentiment(self, text: str) -> Dict:
@@ -37,31 +34,29 @@ class LLMService:
             return self._sentiment_via_api(text)
         if self.sentiment_analyzer is None:
             return {"label": "NEUTRAL", "score": 0.5}
-        try:
-            r = self.sentiment_analyzer(text[:512])[0]
-            return {"label": r["label"], "score": r["score"]}
-        except Exception as e:
-            print(f"Sentiment error: {e}")
-            return {"label": "NEUTRAL", "score": 0.5}
+        
+        r = self.sentiment_analyzer(text[:512])[0]
+        return {"label": r["label"], "score": r["score"]}
 
     def _sentiment_via_api(self, text: str) -> Dict:
         import httpx
         url = f"https://api-inference.huggingface.co/models/{HF_SENTIMENT_MODEL}"
         headers = {"Authorization": f"Bearer {settings.huggingface_api_key}"}
+        
         try:
             with httpx.Client(timeout=30.0) as client:
                 r = client.post(url, headers=headers, json={"inputs": text[:512]})
                 r.raise_for_status()
                 out = r.json()
-            if isinstance(out, list) and len(out) > 0:
-                e = out[0]
-                if isinstance(e, dict):
-                    return {
-                        "label": e.get("label", "NEUTRAL"),
-                        "score": float(e.get("score", 0.5)),
-                    }
-        except Exception as e:
-            print(f"Sentiment API error: {e}")
+                if isinstance(out, list) and out:
+                    e = out[0]
+                    if isinstance(e, dict):
+                        return {
+                            "label": e.get("label", "NEUTRAL"),
+                            "score": float(e.get("score", 0.5)),
+                        }
+        except Exception:
+            pass
         return {"label": "NEUTRAL", "score": 0.5}
 
     def classify_intent(self, text: str, subject: str) -> str:
@@ -89,6 +84,7 @@ class LLMService:
         url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
         headers = {"Authorization": f"Bearer {settings.huggingface_api_key}"}
         prompt = f"Generate a {tone} email response to the following email:\n\nSubject: {email_subject}\nBody: {email_body[:500]}\n\nResponse:"
+        
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.post(
@@ -99,13 +95,13 @@ class LLMService:
                 )
                 if r.status_code == 200:
                     data = r.json()
-                    if isinstance(data, list) and len(data) > 0:
+                    if isinstance(data, list) and data:
                         raw = data[0].get("generated_text", "")
                         if "Response:" in raw:
                             return raw.split("Response:")[-1].strip()
                         return raw.strip()
-        except Exception as e:
-            print(f"Generate response API error: {e}")
+        except Exception:
+            pass
         return self._generate_fallback_response(email_subject, tone)
 
     def _generate_fallback_response(self, subject: str, tone: str) -> str:

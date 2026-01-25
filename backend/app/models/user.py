@@ -27,5 +27,5 @@ class UserPreferences(BaseModel):
     priority_threshold_high: float = 60.0
     priority_threshold_normal: float = 40.0
     auto_respond: bool = False
-    response_tone: str = "professional"  # professional, casual, friendly
+    response_tone: str = "professional"
     preferred_language: str = "en"

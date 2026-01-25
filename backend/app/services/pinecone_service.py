@@ -26,7 +26,6 @@ class PineconeService:
             raise ImportError("Pinecone v3+ required. Install: pip install 'pinecone>=3.0.0'")
         
         try:
-            # Initialize Pinecone client (v3+ API)
             self.pc = Pinecone(api_key=settings.pinecone_api_key)
             
             # Check if index exists
@@ -50,10 +49,10 @@ class PineconeService:
             
             # Connect to index
             self.index = self.pc.Index(self.index_name)
-            print(f"✅ Connected to Pinecone index: {self.index_name}")
+            print(f"Connected to Pinecone index: {self.index_name}")
             
         except Exception as e:
-            print(f"❌ Error initializing Pinecone: {e}")
+            print(f"Error initializing Pinecone: {e}")
             raise
     
     async def upsert_email_embedding(

@@ -199,10 +199,10 @@ export default function Home() {
               <h2 className="text-xl font-semibold">Connect your inbox</h2>
               <p className="text-white/60 text-sm">
                 Use your email and app password (Gmail: enable 2FA, then create
-                an app password). We fetch recent emails and analyze priority.
+                an app password)
               </p>
               <p className="text-white/40 text-xs">
-                Your email and app password are used only to connect via IMAP and are never stored or logged.
+                Note: Your email and app password are used only to connect via IMAP and are never stored.
               </p>
               <input
                 type="email"
@@ -223,7 +223,7 @@ export default function Home() {
                 disabled={inboxLoading}
                 className="px-5 py-2.5 rounded-lg bg-sky-500 text-white font-medium hover:bg-sky-600 disabled:opacity-50"
               >
-                {inboxLoading ? "Fetching & analyzing…" : "Fetch & analyze"}
+                {inboxLoading ? "Fetching & analyzing…" : "Analyze"}
               </button>
               {inboxError && (
                 <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3">
@@ -249,7 +249,7 @@ export default function Home() {
         </main>
 
         <footer className="mt-16 text-center text-white/40 text-sm">
-          Email Prioritizer · Portfolio Project
+          Email Prioritizer
         </footer>
       </div>
     </div>

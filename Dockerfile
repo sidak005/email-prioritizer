@@ -8,9 +8,6 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install ONLY slim dependencies (exclude heavy/unused packages)
-# This keeps image < 4 GB for Railway. App uses HF Inference API when packages are missing.
-# Note: pinecone is NOT excluded - it's needed for the app to work
 COPY requirements.txt .
 RUN python3 -c "\
 import re; \
@@ -20,14 +17,10 @@ open('/tmp/req-slim.txt', 'w').writelines(lines)" && \
     pip install --no-cache-dir -r /tmp/req-slim.txt && \
     rm /tmp/req-slim.txt
 
-# Copy application code
 COPY backend/ ./backend/
 
-# Set Python path
 ENV PYTHONPATH=/app
 
-# Expose port (Railway uses PORT at runtime)
 EXPOSE 8000
 
-# Run the application (use $PORT for Railway/Vercel compat)
 CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
