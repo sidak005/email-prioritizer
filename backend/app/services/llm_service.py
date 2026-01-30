@@ -5,6 +5,7 @@ from backend.app.config import settings
 # Lazy imports for local models (dev only); production uses HF API
 
 HF_SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+HF_ZERO_SHOT_MODEL = "facebook/bart-large-mnli"
 
 
 class LLMService:
@@ -40,9 +41,10 @@ class LLMService:
 
     def _sentiment_via_api(self, text: str) -> Dict:
         import httpx
+        if not getattr(settings, "huggingface_api_key", None):
+            return {"label": "NEUTRAL", "score": 0.5}
         url = f"https://api-inference.huggingface.co/models/{HF_SENTIMENT_MODEL}"
         headers = {"Authorization": f"Bearer {settings.huggingface_api_key}"}
-        
         try:
             with httpx.Client(timeout=30.0) as client:
                 r = client.post(url, headers=headers, json={"inputs": text[:512]})
@@ -58,6 +60,40 @@ class LLMService:
         except Exception:
             pass
         return {"label": "NEUTRAL", "score": 0.5}
+
+    def classify_priority_llm(self, subject: str, body: str) -> Optional[Dict]:
+        if not getattr(settings, "huggingface_api_key", None) or not getattr(settings, "use_llm_priority", True):
+            return None
+        return self._classify_priority_via_api(f"{subject} {body}".strip()[:1024])
+
+    def _classify_priority_via_api(self, text: str) -> Optional[Dict]:
+        import httpx
+        url = f"https://api-inference.huggingface.co/models/{HF_ZERO_SHOT_MODEL}"
+        headers = {"Authorization": f"Bearer {settings.huggingface_api_key}"}
+        payload = {
+            "inputs": text or "(no content)",
+            "parameters": {"candidate_labels": ["urgent", "high", "normal", "low"]},
+        }
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                r = client.post(url, headers=headers, json=payload)
+                r.raise_for_status()
+                out = r.json()
+        except Exception:
+            return None
+        if not isinstance(out, dict):
+            return None
+        labels = out.get("labels") or []
+        scores = out.get("scores") or []
+        if not labels or not scores:
+            return None
+        # Top label is first (API returns sorted by score desc)
+        level = (labels[0] or "normal").lower()
+        score_val = float(scores[0]) if scores else 0.5
+        # Map level to 0–100 score for display (urgent=85+, high=70, normal=50, low=30)
+        score_map = {"urgent": 88, "high": 72, "normal": 50, "low": 28}
+        priority_score = score_map.get(level, 50)
+        return {"priority_level": level, "priority_score": priority_score, "confidence": score_val}
 
     def classify_intent(self, text: str, subject: str) -> str:
         combined = f"{subject} {text}".lower()

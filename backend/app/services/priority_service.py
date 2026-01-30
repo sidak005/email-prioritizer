@@ -1,5 +1,6 @@
 from typing import Dict, List
 from datetime import datetime
+from backend.app.config import settings
 from backend.app.models.email import PriorityLevel, EmailIntent
 from backend.app.services.embedding_service import EmbeddingService
 from backend.app.services.pinecone_service import PineconeService
@@ -40,13 +41,11 @@ class PriorityService:
             "now": 8,
             "required": 7
         }
-        # Phrases that mean low / no urgency (negation or deferral)
         self.low_urgency_phrases = [
             "not important", "not urgent", "not critical", "whenever you want",
             "whenever you can", "no rush", "low priority", "not a priority",
             "take your time", "when you get a chance", "no hurry"
         ]
-        # Strong importance phrases → show URGENT (and boost score)
         self.strong_urgency_phrases = [
             "very important", "really important", "extremely important", "highly important",
             "as soon as possible", "asap", "send it as soon as possible",
@@ -61,27 +60,39 @@ class PriorityService:
         received_at: datetime,
         user_id: str
     ) -> Dict:
-        """Calculate priority score and level for an email"""
         import time
         start_time = time.time()
-        
-        # 1. Analyze intent
+
         intent = self.llm_service.classify_intent(body, subject)
-        
-        # 2. Analyze sentiment
         sentiment_result = self.llm_service.analyze_sentiment(f"{subject} {body}")
+
+        if getattr(settings, "use_llm_priority", True):
+            llm_priority = self.llm_service.classify_priority_llm(subject, body)
+            if llm_priority is not None:
+                try:
+                    priority_level = PriorityLevel(llm_priority["priority_level"])
+                except ValueError:
+                    priority_level = PriorityLevel.NORMAL
+                priority_score = min(100, max(0, float(llm_priority.get("priority_score", 50))))
+                if intent == "spam":
+                    priority_level = PriorityLevel.SPAM
+                processing_time = (time.time() - start_time) * 1000
+                sender_importance = await self._calculate_sender_importance(sender, user_id)
+                return {
+                    "priority_score": round(priority_score, 2),
+                    "priority_level": priority_level,
+                    "intent": intent,
+                    "sentiment": sentiment_result.get("label", "NEUTRAL"),
+                    "urgency_keywords": self._extract_urgency_keywords(subject, body),
+                    "sender_importance": round(sender_importance, 2),
+                    "processing_time_ms": round(processing_time, 2),
+                }
+        # Fallback: rule-based (no API or LLM failed)
         sentiment_score = sentiment_result.get("score", 0.5)
-        
-        # 3. Check urgency keywords
         urgency_score = self._calculate_urgency_score(subject, body)
-        
-        # 4. Calculate importance
         sender_importance = await self._calculate_sender_importance(sender, user_id)
-        
-        # 5. Time sensitivity
         time_sensitivity = self._calculate_time_sensitivity(received_at)
         similar_emails_score = await self._get_similar_emails_priority(subject, body)
-        
         priority_score = (
             sender_importance * self.weights["sender_importance"] * 100 +
             urgency_score * self.weights["urgency_keywords"] * 100 +
@@ -90,25 +101,19 @@ class PriorityService:
             time_sensitivity * self.weights["time_sensitivity"] * 100 +
             similar_emails_score * self.weights["similar_emails"] * 100
         )
-
-        # Penalty when email explicitly says low/no importance (e.g. "not important", "whenever you want")
         text_lower = f"{subject} {body}".lower()
         has_strong_importance = any(phrase in text_lower for phrase in self.strong_urgency_phrases)
         if any(phrase in text_lower for phrase in self.low_urgency_phrases):
             priority_score -= 15
-        # Bonus when email says really/very important / asap so it reaches URGENT
         elif has_strong_importance:
-            priority_score += 28  # push into URGENT (>= 80)
-
+            priority_score += 28
         priority_score = min(100, max(0, priority_score))
         priority_level = self._score_to_level(priority_score, intent)
-        # If user explicitly says really/very important, always show URGENT
         if has_strong_importance and intent != "spam":
             priority_level = PriorityLevel.URGENT
             if priority_score < 80:
-                priority_score = min(100, 80.0)  # show at least 80 so display is consistent
+                priority_score = min(100, 80.0)
         processing_time = (time.time() - start_time) * 1000
-        
         return {
             "priority_score": round(priority_score, 2),
             "priority_level": priority_level,
@@ -120,24 +125,20 @@ class PriorityService:
         }
     
     def _calculate_urgency_score(self, subject: str, body: str) -> float:
-        """Calculate urgency score based on keywords and time context"""
         import re
         text = f"{subject} {body}".lower()
         max_score = max(self.urgency_keywords.values())
 
-        # If text explicitly says low/no importance, return low urgency
         for phrase in self.low_urgency_phrases:
             if phrase in text:
                 return 0.2  # low urgency so "not important" → LOW priority
 
-        # Strong importance phrases → high urgency boost
         strong_boost = 0.0
         for phrase in self.strong_urgency_phrases:
             if phrase in text:
                 strong_boost = 0.95  # push toward high/urgent
                 break
 
-        # Don't count "important" if it's negated (e.g. "not important")
         negated_important = re.search(r'\bnot\s+important\b', text) or "not important" in text
         negated_urgent = re.search(r'\bnot\s+urgent\b', text) or "not urgent" in text
 

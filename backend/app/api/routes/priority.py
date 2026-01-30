@@ -9,7 +9,6 @@ metrics = MetricsCollector()
 
 @router.post("/{email_id}/feedback")
 async def update_priority_feedback(email_id: str, feedback: EmailPriorityUpdate):
-    """Update priority based on user feedback"""
     from backend.app.database.supabase_client import SupabaseClient
     
     try:
@@ -24,8 +23,7 @@ async def update_priority_feedback(email_id: str, feedback: EmailPriorityUpdate)
         
         # Update in database
         await supabase_client.update_email(email_id, updates)
-        
-        # Record feedback for accuracy metrics
+
         if feedback.user_feedback:
             is_correct = feedback.user_feedback == "correct"
             metrics.record_priority_feedback(is_correct)

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 import uuid
 from datetime import datetime
+import time
 
 from backend.app.models.email import Email, EmailCreate, EmailAnalysis, FetchInboxRequest
 from backend.app.services.email_service import EmailService
@@ -16,16 +17,10 @@ from backend.app.services.imap_service import fetch_emails
 router = APIRouter()
 metrics = MetricsCollector()
 
-# Services will be accessed from app.state in route handlers
-
 
 @router.post("/analyze", response_model=EmailAnalysis)
 async def analyze_email(email_data: EmailCreate):
     """Analyze a single email and return priority score"""
-    
-    # Get services from app state (will be set in dependency)
-    # For now, initialize here if needed
-    import time
     start_time = time.time()
     
     try:
@@ -93,7 +88,6 @@ async def analyze_email(email_data: EmailCreate):
 
 @router.post("/batch-analyze")
 async def batch_analyze_emails(emails: List[EmailCreate]):
-    """Analyze multiple emails in batch"""
     results = []
     
     for email_data in emails:
@@ -249,7 +243,6 @@ async def fetch_inbox(req: FetchInboxRequest):
 
 @router.get("/{email_id}", response_model=Email)
 async def get_email(email_id: str):
-    """Get email by ID"""
     supabase_client = SupabaseClient()
     supabase_client.initialize()
     email_data = await supabase_client.get_email(email_id)
@@ -265,7 +258,6 @@ async def get_user_emails(
     offset: int = 0,
     priority_level: Optional[str] = None
 ):
-    """Get emails for a user"""
     supabase_client = SupabaseClient()
     supabase_client.initialize()
     emails = await supabase_client.get_user_emails(

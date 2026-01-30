@@ -36,9 +36,10 @@ class EmbeddingService:
 
     def _embed_via_api(self, text: str) -> List[float]:
         import httpx
+        if not getattr(settings, "huggingface_api_key", None):
+            return [0.0] * EMBEDDING_DIM
         url = f"https://api-inference.huggingface.co/models/{HF_EMBEDDING_MODEL}"
         headers = {"Authorization": f"Bearer {settings.huggingface_api_key}"}
-        
         try:
             with httpx.Client(timeout=30.0) as client:
                 r = client.post(url, headers=headers, json={"inputs": text[:8192]})

@@ -14,21 +14,16 @@ class Settings(BaseSettings):
     
     # Hugging Face
     huggingface_api_key: Optional[str] = None
-    
-    # gmail_client_id: Optional[str] = None
-    # gmail_client_secret: Optional[str] = None
-    # gmail_refresh_token: Optional[str] = None
-    
+
     # App
     environment: str = "development"
     api_key: Optional[str] = None
     log_level: str = "INFO"
-    
-    # redis_url: Optional[str] = None
-    
+    use_llm_priority: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = False
-        extra = "ignore"  # Ignore extra fields in .env that aren't in Settings
+        extra = "ignore"
 
 settings = Settings()

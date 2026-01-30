@@ -21,10 +21,12 @@ class PineconeService:
         self.dimension = 384  # For sentence-transformers/all-MiniLM-L6-v2
     
     async def initialize(self):
-        """Initialize or connect to Pinecone index"""
+        """Initialize or connect to Pinecone index. Skips silently if API key is missing (e.g. local dev)."""
         if not USE_NEW_API:
             raise ImportError("Pinecone v3+ required. Install: pip install 'pinecone>=3.0.0'")
-        
+        if not getattr(settings, "pinecone_api_key", None):
+            self.index = None
+            return
         try:
             self.pc = Pinecone(api_key=settings.pinecone_api_key)
             
