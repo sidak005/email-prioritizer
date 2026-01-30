@@ -46,11 +46,11 @@ class PriorityService:
             "whenever you can", "no rush", "low priority", "not a priority",
             "take your time", "when you get a chance", "no hurry"
         ]
-        # Strong importance phrases that should boost score
+        # Strong importance phrases → show URGENT (and boost score)
         self.strong_urgency_phrases = [
-            "very important", "extremely important", "highly important",
+            "very important", "really important", "extremely important", "highly important",
             "as soon as possible", "asap", "send it as soon as possible",
-            "need it urgently", "top priority", "highest priority"
+            "need it urgently", "top priority", "highest priority", "critically important"
         ]
     
     async def calculate_priority(
@@ -93,14 +93,20 @@ class PriorityService:
 
         # Penalty when email explicitly says low/no importance (e.g. "not important", "whenever you want")
         text_lower = f"{subject} {body}".lower()
+        has_strong_importance = any(phrase in text_lower for phrase in self.strong_urgency_phrases)
         if any(phrase in text_lower for phrase in self.low_urgency_phrases):
             priority_score -= 15
-        # Bonus when email says very important / asap so it clearly reaches HIGH
-        elif any(phrase in text_lower for phrase in self.strong_urgency_phrases):
-            priority_score += 12
+        # Bonus when email says really/very important / asap so it reaches URGENT
+        elif has_strong_importance:
+            priority_score += 28  # push into URGENT (>= 80)
 
         priority_score = min(100, max(0, priority_score))
         priority_level = self._score_to_level(priority_score, intent)
+        # If user explicitly says really/very important, always show URGENT
+        if has_strong_importance and intent != "spam":
+            priority_level = PriorityLevel.URGENT
+            if priority_score < 80:
+                priority_score = min(100, 80.0)  # show at least 80 so display is consistent
         processing_time = (time.time() - start_time) * 1000
         
         return {

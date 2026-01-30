@@ -62,7 +62,7 @@ class LLMService:
     def classify_intent(self, text: str, subject: str) -> str:
         combined = f"{subject} {text}".lower()
         intent_keywords = {
-            "action_required": ["urgent", "asap", "deadline", "required", "need", "please", "action", "very important", "as soon as possible", "send it as soon as possible"],
+            "action_required": ["urgent", "asap", "deadline", "required", "need", "please", "action", "very important", "really important", "as soon as possible", "send it as soon as possible"],
             "question": ["?", "question", "wondering", "ask", "help"],
             "meeting": ["meeting", "call", "schedule", "calendar", "zoom", "teams"],
             "newsletter": ["newsletter", "unsubscribe", "subscribe"],
