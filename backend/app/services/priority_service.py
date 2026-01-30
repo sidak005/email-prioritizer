@@ -40,6 +40,18 @@ class PriorityService:
             "now": 8,
             "required": 7
         }
+        # Phrases that mean low / no urgency (negation or deferral)
+        self.low_urgency_phrases = [
+            "not important", "not urgent", "not critical", "whenever you want",
+            "whenever you can", "no rush", "low priority", "not a priority",
+            "take your time", "when you get a chance", "no hurry"
+        ]
+        # Strong importance phrases that should boost score
+        self.strong_urgency_phrases = [
+            "very important", "extremely important", "highly important",
+            "as soon as possible", "asap", "send it as soon as possible",
+            "need it urgently", "top priority", "highest priority"
+        ]
     
     async def calculate_priority(
         self,
@@ -78,7 +90,15 @@ class PriorityService:
             time_sensitivity * self.weights["time_sensitivity"] * 100 +
             similar_emails_score * self.weights["similar_emails"] * 100
         )
-        
+
+        # Penalty when email explicitly says low/no importance (e.g. "not important", "whenever you want")
+        text_lower = f"{subject} {body}".lower()
+        if any(phrase in text_lower for phrase in self.low_urgency_phrases):
+            priority_score -= 15
+        # Bonus when email says very important / asap so it clearly reaches HIGH
+        elif any(phrase in text_lower for phrase in self.strong_urgency_phrases):
+            priority_score += 12
+
         priority_score = min(100, max(0, priority_score))
         priority_level = self._score_to_level(priority_score, intent)
         processing_time = (time.time() - start_time) * 1000
@@ -98,12 +118,28 @@ class PriorityService:
         import re
         text = f"{subject} {body}".lower()
         max_score = max(self.urgency_keywords.values())
-        
+
+        # If text explicitly says low/no importance, return low urgency
+        for phrase in self.low_urgency_phrases:
+            if phrase in text:
+                return 0.2  # low urgency so "not important" → LOW priority
+
+        # Strong importance phrases → high urgency boost
+        strong_boost = 0.0
+        for phrase in self.strong_urgency_phrases:
+            if phrase in text:
+                strong_boost = 0.95  # push toward high/urgent
+                break
+
+        # Don't count "important" if it's negated (e.g. "not important")
+        negated_important = re.search(r'\bnot\s+important\b', text) or "not important" in text
+        negated_urgent = re.search(r'\bnot\s+urgent\b', text) or "not urgent" in text
+
         found_keywords = []
         total_score = 0
         time_modifier = 1.0
         time_based_urgency = 0.0
-        
+
         near_deadline = re.search(
             r'(?:in\s+(\d+)\s+day|(\d+)\s+day\s+(?:left|remaining|to\s+go|until)|due\s+in\s+(\d+)\s+day)',
             text, re.I
@@ -164,17 +200,25 @@ class PriorityService:
         
         for keyword, score in self.urgency_keywords.items():
             if keyword in text:
+                # Don't count "important" if text says "not important"
+                if keyword == "important" and negated_important:
+                    continue
+                if keyword == "urgent" and negated_urgent:
+                    continue
                 found_keywords.append(keyword)
                 total_score += score
-        
+
         if total_score > 0:
             base = min(1.0, total_score / (max_score * 2))
             base = base * time_modifier
         else:
             base = 0.0
-        
+
         # time-based urgency
         final = max(base, time_based_urgency * time_modifier)
+        # Apply strong importance boost (e.g. "very important", "as soon as possible")
+        if strong_boost > 0:
+            final = max(final, strong_boost)
         return min(1.0, max(0.0, final))
     
     def _extract_urgency_keywords(self, subject: str, body: str) -> List[str]:
